@@ -7,6 +7,7 @@ import (
 	j "github.com/ricardolonga/jsongo"
 	"os"
 	"github.com/spf13/viper"
+	"errors"
 )
 /*
 	Zkclient是一个帮助项目获取zookeeper节点内容并生成json临时文件的中间件，通常用于生成并更新项目配置文件
@@ -31,11 +32,11 @@ import (
 
 	2.新增zookeeper配置文件zkConfig.json，此文件根据项目配置，不改动，需要参数如下
 	{
-	  "address": "XXX.XXX.X.XXXX:XXXX",
+	  "address": "XXX",
 	  "scheme": "XXX",
 	  "auth": "XXX",
-	  "zkrootpath": "XXX/XXX/XX",
-	  "filepath": "XXX"
+	  "zkrootpath": "XXXX",
+	  "filepath": "config/zktemp.json"
 	}
 
 	B、用于项目（自带配置文件，即把zk配置写入配置文件之中，不单独调用配置文件）
@@ -48,11 +49,11 @@ import (
 
 	2.新增项目配置文件节点，此文件根据项目配置，不改动，需要参数如下
 	 "zkConfig":{
-		 "address": "XXX.XXX.X.XXXX:XXXX",
+		"address": "XXX",
 		  "scheme": "XXX",
 		  "auth": "XXX",
-		  "zkrootpath": "XXX/XXX/XX",
-		  "filepath": "XXX"
+		  "zkrootpath": "XXXX",
+		  "filepath": "config/zktemp.json"
 	  }
 
 
@@ -64,13 +65,17 @@ import (
 
 
 var (
+	
 	zkviper    *viper.Viper
 	ADDRESS    string
 	SCHEME     string
 	AUTH       string
 	ZKROOTPATH string
 	FILEPATH   string
+
+	ERR_ZK_IS_NULL = errors.New("zookeeper配置读取有误")
 )
+
 
 
 /*
@@ -92,21 +97,20 @@ func SetupZk(path string) error {
 	FILEPATH = zkviper.GetString("filepath")
 
 	//处理zk流程
-	process()
+	err = process()
+	check(err)
 
 
 	//生成zk的配置读取viper
 	zkviper.SetConfigName("./" + FILEPATH)
 	zkviper.AddConfigPath("./")
 	verr := zkviper.ReadInConfig()
-	if verr != nil {
-		return verr
-	}
+	check(verr)
 	return nil
 }
 
 /*
-	初始化zk，获取节点参数，生成系统配置临时文件(通过aura内部配置文件生成)
+	初始化zk，获取节点参数，生成系统配置临时文件(通过内部配置文件生成)
  */
 func SetupAuraZk() error {
 
@@ -118,18 +122,14 @@ func SetupAuraZk() error {
 
 	//处理zk流程
 	err := process()
-	if err != nil {
-		return err
-	}
+	check(err)
 
 	//生成zk的配置读取viper
 	zkviper = viper.New()
 	zkviper.SetConfigName("./" + FILEPATH)
 	zkviper.AddConfigPath("./")
 	verr := zkviper.ReadInConfig()
-	if verr != nil {
-		return verr
-	}
+	check(verr)
 	return nil
 
 }
@@ -221,10 +221,10 @@ func buildUpConfigFile(c *zk.Conn) error {
  */
 func loadconf(address string, scheme string, auth string) (*zk.Conn, error) {
 	c, _, err := zk.Connect([]string{address}, time.Second)
-	c.AddAuth(scheme, []byte(auth))
 	if err != nil {
 		return nil, err
 	}
+	c.AddAuth(scheme, []byte(auth))
 	return c, nil
 }
 
@@ -278,48 +278,68 @@ func jTofile(zkConfig j.O, path string) error {
 /*
 	使用zkclient读取配置节点参数
  */
-func GetString(key string) string {
-	return zkviper.GetString(key)
+func GetString(key string) (string, error) {
+	if zkviper == nil {
+		return  "", ERR_ZK_IS_NULL
+	}
+	return zkviper.GetString(key), nil
 }
 
-func GetBool(key string) bool {
-	return zkviper.GetBool(key)
+func GetBool(key string) (bool, error) {
+	if zkviper == nil {
+		return  false, ERR_ZK_IS_NULL
+	}
+	return zkviper.GetBool(key), nil
 }
 
-func GetInt(key string) int {
-	return zkviper.GetInt(key)
+func GetInt(key string) (int, error) {
+	if zkviper == nil {
+		return  0, ERR_ZK_IS_NULL
+	}
+	return zkviper.GetInt(key), nil
 }
 
-func GetInt64(key string) int64 {
-	return zkviper.GetInt64(key)
+func GetInt64(key string) (int64, error) {
+	if zkviper == nil {
+		return  0, ERR_ZK_IS_NULL
+	}
+	return zkviper.GetInt64(key), nil
 }
 
-func GetFloat64(key string) float64 {
-	return zkviper.GetFloat64(key)
+func GetFloat64(key string) (float64, error) {
+	if zkviper == nil {
+		return  0, ERR_ZK_IS_NULL
+	}
+	return zkviper.GetFloat64(key), nil
 }
 
-func GetTime(key string) time.Time {
-	return zkviper.GetTime(key)
+
+func GetStringSlice(key string) ([]string, error) {
+	if zkviper == nil {
+		return  nil, ERR_ZK_IS_NULL
+	}
+	return zkviper.GetStringSlice(key), nil
 }
 
-func GetDuration(key string) time.Duration {
-	return zkviper.GetDuration(key)
+func GetStringMap(key string) (map[string]interface{}, error) {
+	if zkviper == nil {
+		return  nil, ERR_ZK_IS_NULL
+	}
+	return zkviper.GetStringMap(key), nil
 }
 
-func GetStringSlice(key string) []string {
-	return zkviper.GetStringSlice(key)
+func GetStringMapString(key string) (map[string]string, error) {
+	if zkviper == nil {
+		return  nil, ERR_ZK_IS_NULL
+	}
+	return zkviper.GetStringMapString(key), nil
 }
 
-func GetStringMap(key string) map[string]interface{} {
-	return zkviper.GetStringMap(key)
-}
-
-func GetStringMapString(key string) map[string]string {
-	return zkviper.GetStringMapString(key)
-}
-
-func GetSizeInBytes(key string) uint {
-	return zkviper.GetSizeInBytes(key)
+func GetSizeInBytes(key string) (uint, error) {
+	if zkviper == nil {
+		return  0, ERR_ZK_IS_NULL
+	}
+	return zkviper.GetSizeInBytes(key), nil
 }
 
 /*
