@@ -1,0 +1,3 @@
+# zkClient
+zkClient tool
+zkClient是一个帮助go项目读取zookeepr节点的中间件
